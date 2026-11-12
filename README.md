@@ -2,6 +2,8 @@
 
 A build-free teaching scaffold for GitHub Pages. The HTML comments mark the future SMART authorization and callback steps. All pages serve static content.
 
+Link: [Smart-App-HL7](https://fantacherjoy.github.io/Smart-App-HL7/)
+
 ## Files
 
 | File | Purpose |
