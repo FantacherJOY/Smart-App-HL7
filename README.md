@@ -2,7 +2,7 @@
 
 A patient-facing SMART on FHIR app for GitHub Pages. The patient opens the app, signs in against the SMART Health IT R4 sandbox, and the app reads their Patient resource.
 
-Link: [Smart-App-HL7](https://fantacherjoy.github.io/Smart-App-HL7/)
+Deployed page link: [Smart-App-HL7](https://fantacherjoy.github.io/Smart-App-HL7/)
 
 ## Files
 
