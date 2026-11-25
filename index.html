@@ -85,6 +85,11 @@
       .results tr:last-child { border-bottom: 0; }
       .results th, .results td { display: block; border: 0; padding: 0.1rem 0; }
     }
+    .conditions { list-style: none; margin: 0; padding: 0; }
+    .conditions li { padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
+    .conditions li:last-child { border-bottom: 0; }
+    .conditions .condition-name { display: block; font-weight: 600; }
+    .conditions .date { display: block; }
   </style>
 </head>
 <body>
@@ -124,6 +129,12 @@
         </table>
       </section>
 
+      <section class="card" aria-labelledby="conditions-heading">
+        <h2 id="conditions-heading">Past conditions</h2>
+        <p id="conditions-status" class="status" role="status">Loading conditions…</p>
+        <ul id="conditions-list" class="conditions" hidden></ul>
+      </section>
+
       <p><a href="./" id="sign-out" class="button button-danger">Sign out</a></p>
     </div>
 
@@ -155,6 +166,7 @@
       .then(function (client) {
         return client.patient.read().then(function (patient) {
           showPatient(patient);
+          loadConditions(client);
           return loadObservations(client);
         });
       })
@@ -217,6 +229,105 @@
           status.textContent = "We could not load your recent results right now. " +
             "Your details above are still correct. Please try again later. (" + errorText(error) + ")";
         });
+    }
+
+    // Requests: GET Condition?patient=<signed-in patient id>&clinical-status=resolved.
+    // No code filter, because every patient has different conditions (coded in SNOMED CT).
+    // Reads: every page of results flattened into one list of Conditions.
+    // The student should see: the "Past conditions" list, an empty-state message if the
+    // sandbox patient has none, or a plain-language error in this section only.
+    // Runs on its own, so a failure here never stops "Recent results".
+    function loadConditions(client) {
+      var url = "Condition?patient=" + encodeURIComponent(client.patient.id) +
+        "&clinical-status=resolved&_count=100";
+
+      return client.request(url, { pageLimit: 0, flat: true })
+        .then(function (conditions) {
+          renderConditions(Array.isArray(conditions) ? conditions : []);
+        })
+        .catch(function (error) {
+          var status = document.getElementById("conditions-status");
+          status.className = "error";
+          status.textContent = "We could not load your past conditions right now. " +
+            "The rest of your record is still shown. Please try again later. (" + errorText(error) + ")";
+        });
+    }
+
+    // Requests nothing. Reads Condition.code.text, else code.coding[0].display.
+    // Removes a trailing "(disorder)" or "(finding)" so the label reads plainly.
+    // Returns "Unnamed condition" when the resource has no label.
+    function conditionName(condition) {
+      var code = condition && condition.code ? condition.code : {};
+      var coding = Array.isArray(code.coding) && code.coding[0] ? code.coding[0] : {};
+      var text = code.text || coding.display || "";
+      text = text.replace(/\s*\((disorder|finding)\)\s*$/i, "").trim();
+      return text || "Unnamed condition";
+    }
+
+    // Requests nothing. Reads onsetDateTime, else onsetPeriod.start.
+    // Returns the start date string, or "" when the resource has none.
+    function conditionOnset(condition) {
+      if (!condition) return "";
+      return condition.onsetDateTime || (condition.onsetPeriod && condition.onsetPeriod.start) || "";
+    }
+
+    // Requests nothing. Reads abatementDateTime, else abatementPeriod.start.
+    // Returns the end date string, or "" when the resource has none.
+    function conditionAbatement(condition) {
+      if (!condition) return "";
+      return condition.abatementDateTime || (condition.abatementPeriod && condition.abatementPeriod.start) || "";
+    }
+
+    // Requests nothing. Sorts Conditions newest first by onset, then keeps one per
+    // code.coding[0].code (or label when there is no code) so repeats show once.
+    // The student should see each condition name with "Started" and, when known, "Ended",
+    // or an empty-state message when the search returned nothing.
+    function renderConditions(conditions) {
+      var status = document.getElementById("conditions-status");
+      if (conditions.length === 0) {
+        status.textContent = "No past conditions were found. This sandbox patient has no resolved conditions on file.";
+        return;
+      }
+
+      var sorted = conditions.slice().sort(function (a, b) {
+        return (Date.parse(conditionOnset(b)) || 0) - (Date.parse(conditionOnset(a)) || 0);
+      });
+      var seen = {};
+      var unique = sorted.filter(function (c) {
+        var coding = c.code && Array.isArray(c.code.coding) && c.code.coding[0];
+        var key = (coding && coding.code) || conditionName(c);
+        if (seen[key]) return false;
+        seen[key] = true;
+        return true;
+      });
+
+      var list = document.getElementById("conditions-list");
+      list.textContent = "";
+      unique.forEach(function (c) {
+        var li = document.createElement("li");
+        var name = document.createElement("span");
+        name.className = "condition-name";
+        name.textContent = conditionName(c);
+        li.appendChild(name);
+
+        var onset = conditionOnset(c);
+        var started = document.createElement("span");
+        started.className = "date";
+        started.textContent = "Started " + (onset ? formatDate(onset) : "– date not recorded");
+        li.appendChild(started);
+
+        var abatement = conditionAbatement(c);
+        if (abatement) {
+          var ended = document.createElement("span");
+          ended.className = "date";
+          ended.textContent = "Ended " + formatDate(abatement);
+          li.appendChild(ended);
+        }
+        list.appendChild(li);
+      });
+
+      status.hidden = true;
+      list.hidden = false;
     }
 
     // Requests nothing. Reads Observation.code.coding[].code and returns true
@@ -282,13 +393,13 @@
       return { text: "", date: resultDate(panel || sysObs || diaObs) };
     }
 
-    // Requests nothing. Builds the four rows (Height, Respiratory rate, Heart rate, Blood pressure, HDL, LDL).
+    // Requests nothing. Builds the six rows (Height, Blood pressure, Respiratory rate, Heart rate, HDL, LDL).
     // The student should see each value with its unit and date, "Not recorded"
     // for a missing value, or an empty-state message when the search returned nothing.
     function renderResults(observations) {
       var status = document.getElementById("results-status");
       if (observations.length === 0) {
-        status.textContent = "No matching results were found. This sandbox patient has no matching vital signs or cholesterol results on file";
+        status.textContent = "No matching results were found. This sandbox patient has no matching vital signs or cholesterol results on file.";
         return;
       }
 
