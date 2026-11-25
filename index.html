@@ -134,6 +134,8 @@
     var LOINC = {
       height: "8302-2",
       bpPanel: "85354-9",
+      rr: "9279-1",
+      hr: "8867-4",
       systolic: "8480-6",
       diastolic: "8462-4",
       hdl: "2085-9",
@@ -199,7 +201,7 @@
     // The student should see: the "Recent results" table filled in, an empty-state
     // message if the sandbox patient has none, or a plain-language error if the search fails.
     function loadObservations(client) {
-      var codes = [LOINC.height, LOINC.bpPanel, LOINC.systolic, LOINC.diastolic, LOINC.hdl, LOINC.ldl]
+      var codes = [LOINC.height, LOINC.bpPanel, LOINC.rr, LOINC.hr, LOINC.systolic, LOINC.diastolic, LOINC.hdl, LOINC.ldl]
         .map(function (code) { return "http://loinc.org|" + code; })
         .join(",");
       var url = "Observation?patient=" + encodeURIComponent(client.patient.id) +
@@ -280,13 +282,13 @@
       return { text: "", date: resultDate(panel || sysObs || diaObs) };
     }
 
-    // Requests nothing. Builds the four rows (Height, Blood pressure, HDL, LDL).
+    // Requests nothing. Builds the four rows (Height, Respiratory rate, Heart rate, Blood pressure, HDL, LDL).
     // The student should see each value with its unit and date, "Not recorded"
     // for a missing value, or an empty-state message when the search returned nothing.
     function renderResults(observations) {
       var status = document.getElementById("results-status");
       if (observations.length === 0) {
-        status.textContent = "No matching results were found. This sandbox patient has no height, blood pressure, HDL, or LDL observations on file.";
+        status.textContent = "No matching results were found. This sandbox patient has no matching vital signs or cholesterol results on file";
         return;
       }
 
@@ -298,6 +300,8 @@
       var rows = [
         { label: "Height", result: single(LOINC.height) },
         { label: "Blood pressure", result: bloodPressure(observations) },
+        { label: "Respiratory rate", result: single(LOINC.rr) },
+        { label: "Heart rate", result: single(LOINC.hr) },
         { label: "HDL", result: single(LOINC.hdl) },
         { label: "LDL", result: single(LOINC.ldl) }
       ];
